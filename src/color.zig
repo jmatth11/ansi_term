@@ -38,6 +38,11 @@ pub const Modifier = struct {
         }
         return [1]u8{base_code};
     }
+
+    /// Write out the modifier to the given writer.
+    pub fn write(self: Modifier, w: std.io.AnyWriter) !usize {
+        return try modifier_write(w, self);
+    }
 };
 
 /// Base Color structure.
