@@ -1,9 +1,85 @@
 const std = @import("std");
 const codes = @import("escape_codes.zig");
 const commands = @import("commands.zig");
+const rgb = @import("rgb.zig");
+
+pub const color_result = std.meta.Tuple(.{ Color, usize });
+
+const parse_param_limit: u8 = 5;
+
+/// The color mode options.
+pub const color_mode = enum {
+    /// ISO colors
+    bit8,
+    /// 256 colors
+    bit21,
+    /// RGB true colors
+    bit24,
+};
+
+pub const BaseColor = struct {
+    bright: bool = false,
+    modifier: ?modifier_options = null,
+    color: color_options = color_options.black,
+    reset: bool = false,
+};
+
+pub const ColorType = union(enum) {
+    base_color: BaseColor,
+    rgb: rgb.RGB,
+};
+
+/// Structure to hold color data.
+pub const Color = struct {
+    mode: color_mode = .bit21,
+    fg: bool = true,
+    color: ColorType = .{ .rgb = rgb.standard_rgb_colors.black },
+};
+
+pub const modifier_options = enum(u8) {
+    reset = 0,
+    bold,
+    dim,
+    italic,
+    underline,
+    blinking,
+    reverse,
+    invisible,
+    strikethrough,
+
+    pub fn str_code(self: modifier_options) u8 {
+        return switch (self) {
+            modifier_options.reset => codes.reset_all,
+            modifier_options.bold => codes.bold,
+            modifier_options.dim => codes.dim,
+            modifier_options.italic => codes.italic,
+            modifier_options.underline => codes.underline,
+            modifier_options.blinking => codes.blinking,
+            modifier_options.reverse => codes.reverse,
+            modifier_options.invisible => codes.invisible,
+            modifier_options.strikethrough => codes.strikethrough,
+            else => codes.reset_all,
+        };
+    }
+
+    pub fn from_code(val: u8) ?modifier_options {
+        return switch (val) {
+            0...5 => @enumFromInt(val),
+            7...9 => @enumFromInt(val),
+            22 => modifier_options.bold,
+            23 => modifier_options.italic,
+            24 => modifier_options.underline,
+            25 => modifier_options.blinking,
+            27 => modifier_options.reverse,
+            28 => modifier_options.invisible,
+            29 => modifier_options.strikethrough,
+            else => null,
+        };
+    }
+};
 
 /// Enum type of symbol 8bit colors
-pub const color_type = enum {
+pub const color_options = enum {
     black,
     red,
     green,
@@ -14,17 +90,37 @@ pub const color_type = enum {
     white,
     default,
 
-    pub fn color_8bit(self: color_type) []u8 {
+    pub fn color_8bit(self: color_options) u8 {
         return switch (self) {
-            color_type.black => codes.base_black,
-            color_type.red => codes.base_red,
-            color_type.green => codes.base_green,
-            color_type.yellow => codes.base_yellow,
-            color_type.blue => codes.base_blue,
-            color_type.magenta => codes.base_magenta,
-            color_type.cyan => codes.base_cyan,
-            color_type.white => codes.base_white,
+            color_options.black => codes.base_black,
+            color_options.red => codes.base_red,
+            color_options.green => codes.base_green,
+            color_options.yellow => codes.base_yellow,
+            color_options.blue => codes.base_blue,
+            color_options.magenta => codes.base_magenta,
+            color_options.cyan => codes.base_cyan,
+            color_options.white => codes.base_white,
             else => codes.base_default,
+        };
+    }
+    pub fn from_code(val: u8) ?color_options {
+        const base_value = switch (val) {
+            30...39 => val - 30,
+            40...49 => val - 40,
+            90...99 => val - 90,
+            100...109 => val - 100,
+        };
+        return switch (base_value) {
+            0 => color_options.black,
+            1 => color_options.red,
+            2 => color_options.green,
+            3 => color_options.yellow,
+            4 => color_options.blue,
+            5 => color_options.magenta,
+            6 => color_options.cyan,
+            7 => color_options.white,
+            9 => color_options.default,
+            else => null,
         };
     }
 };
@@ -45,7 +141,7 @@ fn write_len_of_int(n: u8) usize {
 /// @param fg Flag for foreground color or background.
 /// @param bright Flag for bright colors or regular colors.
 /// @return The number of bytes written.
-pub fn color_8bit(w: std.io.AnyWriter, color: color_type, fg: bool, bright: bool) !usize {
+pub fn color_8bit(w: std.io.AnyWriter, color: color_options, fg: bool, bright: bool) !usize {
     var write_len = try w.write(commands.csi);
     if (bright) {
         if (fg) {
@@ -75,19 +171,19 @@ pub fn color_8bit(w: std.io.AnyWriter, color: color_type, fg: bool, bright: bool
 /// @param fg The flag for foreground or background coloring.
 /// @return The number of bytes written.
 pub fn color_256(w: std.io.AnyWriter, val: u8, fg: bool) !usize {
-    var write_len = try w.write(w.ctx, commands.csi);
+    var write_len = try w.write(commands.csi);
     if (fg) {
-        write_len += try w.write(w.ctx, codes.foreground_ext);
+        write_len += try w.write(codes.foreground_ext);
     } else {
-        write_len += try w.write(w.ctx, codes.background_ext);
+        write_len += try w.write(codes.background_ext);
     }
-    try w.writeByte(w.ctx, codes.param_sep);
-    try w.writeByte(w.ctx, codes.flag_256);
-    try w.writeByte(w.ctx, codes.param_sep);
+    try w.writeByte(codes.param_sep);
+    try w.writeByte(codes.flag_256);
+    try w.writeByte(codes.param_sep);
     write_len += 3;
-    try w.writeInt(u8, val, std.builtin.Endian.little);
+    try std.fmt.format(w, "{d}", .{val});
     write_len += write_len_of_int(val);
-    try w.writeByte(w.ctx, codes.csi_end);
+    try w.writeByte(codes.csi_end);
     write_len += 1;
     return write_len;
 }
@@ -101,27 +197,172 @@ pub fn color_256(w: std.io.AnyWriter, val: u8, fg: bool) !usize {
 /// @param fg The flag for foreground or background coloring.
 /// @return The number of bytes written.
 pub fn color_true(w: std.io.AnyWriter, r: u8, g: u8, b: u8, fg: bool) !usize {
-    var write_len = try w.write(w.ctx, commands.csi);
+    var write_len = try w.write(commands.csi);
     if (fg) {
-        write_len += try w.write(w.ctx, codes.foreground_ext);
+        write_len += try w.write(codes.foreground_ext);
     } else {
-        write_len += try w.write(w.ctx, codes.background_ext);
+        write_len += try w.write(codes.background_ext);
     }
-    try w.writeByte(w.ctx, codes.param_sep);
-    try w.writeByte(w.ctx, codes.true_color_flag);
-    try w.writeByte(w.ctx, codes.param_sep);
+    try w.writeByte(codes.param_sep);
+    try w.writeByte(codes.true_color_flag);
+    try w.writeByte(codes.param_sep);
     write_len += 3;
-    try w.writeInt(u8, r, std.builtin.Endian.little);
+    try std.fmt.format(w, "{d}", .{r});
     write_len += write_len_of_int(r);
-    try w.writeByte(w.ctx, codes.param_sep);
+    try w.writeByte(codes.param_sep);
     write_len += 1;
-    try w.writeInt(u8, g, std.builtin.Endian.little);
+    try std.fmt.format(w, "{d}", .{g});
     write_len += write_len_of_int(g);
-    try w.writeByte(w.ctx, codes.param_sep);
+    try w.writeByte(codes.param_sep);
     write_len += 1;
-    try w.writeInt(u8, b, std.builtin.Endian.little);
+    try std.fmt.format(w, "{d}", .{b});
     write_len += write_len_of_int(b);
-    try w.writeByte(w.ctx, codes.csi_end);
+    try w.writeByte(codes.csi_end);
     write_len += 1;
     return write_len;
+}
+
+fn check_for_modifier(val: u8, result: *Color) bool {
+    const modifier = modifier_options.from_code(val);
+    if (modifier == null) return false;
+    result.color.base_color.modifier = modifier;
+    switch (val) {
+        22...29 => result.color.base_color.reset = true,
+    }
+    return true;
+}
+
+fn check_for_base_color(val: u8, result: *Color) bool {
+    const base_color = color_options.from_code(val);
+    if (base_color == null) return false;
+    result.color.base_color.color = base_color;
+    switch (val) {
+        30...39 => result.fg = true,
+        40...49 => result.fg = false,
+        90...99 => {
+            result.color.base_color.bright = true;
+            result.fg = true;
+        },
+        100...109 => {
+            result.color.base_color.bright = true;
+            result.fg = false;
+        },
+    }
+    return true;
+}
+
+fn assign_ansi_values(groupings: [parse_param_limit]u8, groupings_len: u8) codes.ansi_errors!Color {
+    var result: Color = .{};
+    switch (groupings_len) {
+        1 => {
+            result.mode = .bit8;
+            const num = groupings[0];
+            switch (num) {
+                0...29 => {
+                    if (!check_for_modifier(num, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+                30...49 => {
+                    if (!check_for_base_color(num, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+                90...109 => {
+                    if (!check_for_base_color(num, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+            }
+        },
+        2 => {
+            result.mode = .bit8;
+            const modifier = groupings[0];
+            const color = groupings[1];
+            switch (modifier) {
+                0...29 => {
+                    if (!check_for_modifier(modifier, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+            }
+            switch (color) {
+                30...49 => {
+                    if (!check_for_base_color(color, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+                90...109 => {
+                    if (!check_for_base_color(color, &result)) {
+                        return codes.ansi_errors.invalid_format;
+                    }
+                },
+            }
+        },
+        3 => {
+            const param_one = groupings[0];
+            const flag = groupings[1];
+            const color = groupings[2];
+            if (param_one != codes.base_foreground_prefix and param_one != codes.base_background_prefix) {
+                return codes.ansi_errors.invalid_format;
+            }
+            result.fg = (param_one == codes.base_foreground_prefix);
+            if (flag != codes.flag_256) {
+                return codes.ansi_errors.invalid_format;
+            }
+            result.mode = .bit21;
+            result.rgb.rgb = rgb.standard_rgb_colors.from_256(color);
+        },
+        5 => {
+            const param_one = groupings[0];
+            const flag = groupings[1];
+            const color_r = groupings[2];
+            const color_g = groupings[3];
+            const color_b = groupings[4];
+            if (param_one != codes.base_foreground_prefix and param_one != codes.base_background_prefix) {
+                return codes.ansi_errors.invalid_format;
+            }
+            result.fg = (param_one == codes.base_foreground_prefix);
+            if (flag != codes.true_color_flag) {
+                return codes.ansi_errors.invalid_format;
+            }
+            result.mode = .bit24;
+            result.color.rgb.r = color_r;
+            result.color.rgb.g = color_g;
+            result.color.rgb.b = color_b;
+        },
+        else => return codes.ansi_error.unsupported_format,
+    }
+    return result;
+}
+
+pub fn parse_color(str: []const u8) codes.ansi_error!color_result {
+    if (str.len < 4) return codes.ansi_error.invalid_format;
+    if (str[0] != codes.escape_code or str[1] != '[') return codes.ansi_error.invalid_format;
+    var process = true;
+    var str_starting_idx: u8 = 2;
+    var parsed_number: u8 = 0;
+    var groupings: [parse_param_limit]u8 = undefined;
+    while (process) {
+        var buf: [4]u8 = undefined;
+        var idx: u8 = 0;
+        while (idx < buf.len) : (idx += 1) {
+            const cur_idx = str_starting_idx + idx;
+            if (cur_idx >= str.len) return codes.ansi_error.invalid_format;
+            const cur_char = str[cur_idx];
+            if (cur_char == 'm') {
+                process = false;
+                break;
+            }
+            if (cur_char == ';') break;
+            buf[idx] = cur_char;
+        }
+        str_starting_idx += idx + 1;
+        parsed_number += 1;
+        if (parsed_number >= parse_param_limit) return codes.ansi_error.invalid_format;
+        const num: u8 = std.fmt.parseInt(u8, buf[0..idx], 10) catch return codes.ansi_error.error_parsing;
+        groupings[(parsed_number - 1)] = num;
+    }
+    const result = try assign_ansi_values(groupings, parsed_number);
+    return .{ result, str_starting_idx };
 }

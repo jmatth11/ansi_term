@@ -94,6 +94,12 @@ pub const screen_monochrome_640x480: [2]u8 = [_]u8{ '1', '7' };
 pub const screen_color_640x480: [2]u8 = [_]u8{ '1', '8' };
 pub const screen_256color_320x200: [2]u8 = [_]u8{ '1', '9' };
 
+/// General errors
 pub const ansi_errors = error{
-    invalid_size,
+    /// An incorrect format
+    invalid_format,
+    /// Possibly a correct format but not supported yet.
+    unsupported_format,
+    /// Error parsing values out from string.
+    error_parsing,
 };
