@@ -17,15 +17,47 @@ pub const color_mode = enum {
     bit24,
 };
 
-pub const BaseColor = struct {
-    bright: bool = false,
-    modifier: ?modifier_options = null,
-    color: color_options = color_options.black,
+/// Structure to handle modifier codes. (bold, italic, etc...)
+pub const Modifier = struct {
+    /// The modifier option
+    mod: modifier_options = modifier_options.reset,
+    /// Reset flag
     reset: bool = false,
+
+    /// Get the modifier code.
+    /// Handles normal and reset codes.
+    pub fn code(self: *const Modifier) []u8 {
+        var base_code = self.mod.str_code();
+        if (self.reset) {
+            // 22 is reset code for code 1 and 2
+            if (base_code == '1') base_code = '2';
+            // reset all command is just zero by itself
+            if (base_code != '0') {
+                return [2]u8{ codes.reset_sequence_prefix, base_code };
+            }
+        }
+        return [1]u8{base_code};
+    }
 };
 
+/// Base Color structure.
+/// This structure should not be used directly.
+/// Its main use is inside the Color structure.
+pub const BaseColor = struct {
+    /// Flag for bright colors
+    bright: bool = false,
+    /// Optional modifier object
+    modifier: ?Modifier = null,
+    /// The color option
+    color: color_options = color_options.black,
+};
+
+/// Tagged enum for color type.
+/// Switches between ISO 8 bit and the RGB variants.
 pub const ColorType = union(enum) {
+    /// ISO 8 bit color
     base_color: BaseColor,
+    /// 256 or True RGB color
     rgb: rgb.RGB,
 };
 
@@ -34,6 +66,28 @@ pub const Color = struct {
     mode: color_mode = .bit21,
     fg: bool = true,
     color: ColorType = .{ .rgb = rgb.standard_rgb_colors.black },
+
+    pub fn write(self: *const Color, w: std.io.AnyWriter) !usize {
+        return switch (self.mode) {
+            .bit8 => {
+                return try color_8bit(
+                    w,
+                    self.color.base_color,
+                    self.fg,
+                    self.color.base_color.bright,
+                    self.color.base_color.modifier,
+                );
+            },
+            .bit21 => {
+                const val = try self.color.rgb.to_256();
+                return try color_256(w, val, self.fg);
+            },
+            .bit24 => {
+                const local_rgb = self.color.rgb;
+                return try color_true(w, local_rgb.r, local_rgb.g, local_rgb.b, self.fg);
+            },
+        };
+    }
 };
 
 pub const modifier_options = enum(u8) {
@@ -134,15 +188,34 @@ fn write_len_of_int(n: u8) usize {
     return 3;
 }
 
+/// Write out a modifier code. (bold, italic, etc...)
+///
+/// @param w The writer to write out to.
+/// @param modifier The modifier object to write.
+/// @return The number of bytes written.
+pub fn modifier_write(w: std.io.AnyWriter, modifier: Modifier) !usize {
+    var write_len = try w.write(commands.csi);
+    write_len += try w.write(modifier.code());
+    try w.writeByte(codes.csi_end);
+    write_len += 1;
+    return write_len;
+}
+
 /// Write out an 8bit color with the given parameters.
 ///
 /// @param w The writer to write out to.
 /// @param color The color type enum.
 /// @param fg Flag for foreground color or background.
 /// @param bright Flag for bright colors or regular colors.
+/// @param modifier The modifier object to apply to the color. (bold, italic, etc..)
 /// @return The number of bytes written.
-pub fn color_8bit(w: std.io.AnyWriter, color: color_options, fg: bool, bright: bool) !usize {
+pub fn color_8bit(w: std.io.AnyWriter, color: color_options, fg: bool, bright: bool, modifier: ?Modifier) !usize {
     var write_len = try w.write(commands.csi);
+    if (modifier) |mod| {
+        write_len += try w.write(mod.code());
+        try w.writeByte(codes.param_sep);
+        write_len += 1;
+    }
     if (bright) {
         if (fg) {
             try w.writeByte(codes.base_bright_foreground_prefix);
@@ -225,9 +298,11 @@ pub fn color_true(w: std.io.AnyWriter, r: u8, g: u8, b: u8, fg: bool) !usize {
 fn check_for_modifier(val: u8, result: *Color) bool {
     const modifier = modifier_options.from_code(val);
     if (modifier == null) return false;
-    result.color.base_color.modifier = modifier;
+    result.color.base_color.modifier = .{
+        .mod = modifier,
+    };
     switch (val) {
-        22...29 => result.color.base_color.reset = true,
+        22...29 => result.color.base_color.modifier.?.reset = true,
     }
     return true;
 }
@@ -336,9 +411,13 @@ fn assign_ansi_values(groupings: [parse_param_limit]u8, groupings_len: u8) codes
     return result;
 }
 
+/// Parse out a color_result from the given string.
+///
+/// @param str The string to parse.
+/// @return A color result tuple of <Color, usize> where usize is the number of bytes read.
 pub fn parse_color(str: []const u8) codes.ansi_error!color_result {
     if (str.len < 4) return codes.ansi_error.invalid_format;
-    if (str[0] != codes.escape_code or str[1] != '[') return codes.ansi_error.invalid_format;
+    if (str[0] != codes.escape_code or str[1] != codes.control_sequence_introducer) return codes.ansi_error.invalid_format;
     var process = true;
     var str_starting_idx: u8 = 2;
     var parsed_number: u8 = 0;
