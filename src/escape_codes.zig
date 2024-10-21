@@ -2,11 +2,11 @@
 /// Ansi Escape Code
 pub const escape_code: u8 = 0x1b;
 /// Character to start a control sequence.
-pub const control_sequence_introducer: u8 = 0x9b;
+pub const control_sequence_introducer: u8 = '[';
 /// Character to start a device control string.
-pub const device_control_string: u8 = 0x90;
+pub const device_control_string: u8 = 'P';
 /// Character to start an OS command.
-pub const os_command: u8 = 0x9d;
+pub const os_command: u8 = ']';
 pub const csi_end: u8 = 'm';
 pub const param_sep: u8 = ';';
 
