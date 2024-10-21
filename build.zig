@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     // library setup
     const lib = b.addStaticLibrary(.{
         .name = "ansi_term",
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/ansi.zig"),
         .target = target,
         .optimize = optimize,
     });
