@@ -102,7 +102,8 @@ pub const modifier_options = enum(u8) {
     italic,
     underline,
     blinking,
-    reverse,
+    // 6 is skipped
+    reverse = 7,
     invisible,
     strikethrough,
 

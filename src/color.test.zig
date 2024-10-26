@@ -101,6 +101,75 @@ test "Modifier write reset reverse code" {
     try testing.expectEqualSlices(u8, &expected, writer.items);
 }
 
+test "modifier options code switch" {
+    const reset = color.modifier_options.reset;
+    try testing.expect(reset.code() == codes.reset_all);
+
+    const bold = color.modifier_options.bold;
+    try testing.expect(bold.code() == codes.bold);
+
+    const dim = color.modifier_options.dim;
+    try testing.expect(dim.code() == codes.dim);
+
+    const italic = color.modifier_options.italic;
+    try testing.expect(italic.code() == codes.italic);
+
+    const underline = color.modifier_options.underline;
+    try testing.expect(underline.code() == codes.underline);
+
+    const blinking = color.modifier_options.blinking;
+    try testing.expect(blinking.code() == codes.blinking);
+
+    const reverse = color.modifier_options.reverse;
+    try testing.expect(reverse.code() == codes.reverse);
+
+    const invisible = color.modifier_options.invisible;
+    try testing.expect(invisible.code() == codes.invisible);
+
+    const strikethrough = color.modifier_options.strikethrough;
+    try testing.expect(strikethrough.code() == codes.strikethrough);
+}
+
+test "modifier options from_code switch" {
+    var result = color.modifier_options.from_code(0);
+    const reset = color.modifier_options.reset;
+    try testing.expect(result == reset);
+
+    result = color.modifier_options.from_code(1);
+    const bold = color.modifier_options.bold;
+    try testing.expect(result == bold);
+    result = color.modifier_options.from_code(22);
+    try testing.expect(result == bold);
+
+    result = color.modifier_options.from_code(2);
+    const dim = color.modifier_options.dim;
+    try testing.expect(result == dim);
+
+    result = color.modifier_options.from_code(3);
+    const italic = color.modifier_options.italic;
+    try testing.expect(result == italic);
+
+    result = color.modifier_options.from_code(4);
+    const underline = color.modifier_options.underline;
+    try testing.expect(result == underline);
+
+    result = color.modifier_options.from_code(5);
+    const blinking = color.modifier_options.blinking;
+    try testing.expect(result == blinking);
+
+    result = color.modifier_options.from_code(7);
+    const reverse = color.modifier_options.reverse;
+    try testing.expect(result == reverse);
+
+    result = color.modifier_options.from_code(8);
+    const invisible = color.modifier_options.invisible;
+    try testing.expect(result == invisible);
+
+    result = color.modifier_options.from_code(9);
+    const strikethrough = color.modifier_options.strikethrough;
+    try testing.expect(result == strikethrough);
+}
+
 //test "ansi escape code" {
 //    const test_str = ;
 //    try testing.expect(test_str == ansi.escape_code);
