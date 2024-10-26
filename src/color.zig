@@ -77,7 +77,7 @@ pub const Color = struct {
             .bit4 => {
                 return try write_color_4bit(
                     w,
-                    self.color.base_color,
+                    self.color.base_color.color,
                     self.fg,
                     self.color.base_color.bright,
                     self.color.base_color.modifier,
@@ -138,8 +138,8 @@ pub const modifier_options = enum(u8) {
 };
 
 /// Enum type of symbol 8bit colors
-pub const color_options = enum {
-    black,
+pub const color_options = enum(u8) {
+    black = 0,
     red,
     green,
     yellow,
@@ -147,7 +147,8 @@ pub const color_options = enum {
     magenta,
     cyan,
     white,
-    default,
+    // skipped 8
+    default = 9,
 
     pub fn code(self: color_options) u8 {
         return switch (self) {

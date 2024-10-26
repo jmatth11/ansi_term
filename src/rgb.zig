@@ -15,17 +15,17 @@ const colors_to_manually_check: [7]RGB = [_]RGB{
 };
 
 fn indexes_in_256_step(color: *const RGB) [3]i8 {
-    var idx: u8 = 0;
+    var idx: usize = 0;
     var result: [3]i8 = [_]i8{ -1, -1, -1 };
     while (idx < 6) : (idx += 1) {
         if (color.r == rgb_256_steps[idx]) {
-            result[0] = idx;
+            result[0] = @intCast(idx);
         }
         if (color.g == rgb_256_steps[idx]) {
-            result[1] = idx;
+            result[1] = @intCast(idx);
         }
         if (color.b == rgb_256_steps[idx]) {
-            result[2] = idx;
+            result[2] = @intCast(idx);
         }
     }
     return result;
@@ -46,7 +46,10 @@ pub const RGB = struct {
         const in_256_step: bool = steps[0] != -1 and steps[1] != -1 and steps[2] != -1;
         // this handles some of the standard base colors as well
         if (in_256_step) {
-            return 16 + ((36 * steps[0]) + (6 * steps[1]) + steps[2]);
+            const red: u8 = @intCast(steps[0]);
+            const green: u8 = @intCast(steps[1]);
+            const blue: u8 = @intCast(steps[2]);
+            return 16 + ((36 * red) + (6 * green) + blue);
         }
         // 192 is for silver base color
         if (rgb_same and self.r != 192) {
@@ -56,14 +59,14 @@ pub const RGB = struct {
         // one of the standard base colors
         for (colors_to_manually_check, 1..) |c, idx| {
             if (self.cmp(c)) {
-                return idx;
+                return @intCast(idx);
             }
         }
         return rgb_error.conversion_error;
     }
 
     /// Compare another RGB's values for equality.
-    pub fn cmp(self: *const RGB, other: *const RGB) bool {
+    pub fn cmp(self: RGB, other: RGB) bool {
         return (self.r == other.r and self.g == other.g and self.b == other.b);
     }
 };

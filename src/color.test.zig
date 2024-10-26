@@ -170,6 +170,203 @@ test "modifier options from_code switch" {
     try testing.expect(result == strikethrough);
 }
 
+test "color options code switch" {
+    const black = color.color_options.black;
+    try testing.expect(black.code() == codes.base_black);
+
+    const red = color.color_options.red;
+    try testing.expect(red.code() == codes.base_red);
+
+    const green = color.color_options.green;
+    try testing.expect(green.code() == codes.base_green);
+
+    const yellow = color.color_options.yellow;
+    try testing.expect(yellow.code() == codes.base_yellow);
+
+    const blue = color.color_options.blue;
+    try testing.expect(blue.code() == codes.base_blue);
+
+    const magenta = color.color_options.magenta;
+    try testing.expect(magenta.code() == codes.base_magenta);
+
+    const cyan = color.color_options.cyan;
+    try testing.expect(cyan.code() == codes.base_cyan);
+
+    const white = color.color_options.white;
+    try testing.expect(white.code() == codes.base_white);
+
+    const default = color.color_options.default;
+    try testing.expect(default.code() == codes.base_default);
+}
+
+test "color options from_code switch" {
+    const options: [9]color.color_options = [_]color.color_options{
+        color.color_options.black,
+        color.color_options.red,
+        color.color_options.green,
+        color.color_options.yellow,
+        color.color_options.blue,
+        color.color_options.magenta,
+        color.color_options.cyan,
+        color.color_options.white,
+        color.color_options.default,
+    };
+    for (options, 0..) |opt, idx| {
+        var offset: u8 = @intCast(idx);
+        if (offset == 8) offset += 1;
+        var result = color.color_options.from_code(30 + offset);
+        try testing.expect(result == opt);
+        result = color.color_options.from_code(40 + offset);
+        try testing.expect(result == opt);
+        result = color.color_options.from_code(90 + offset);
+        try testing.expect(result == opt);
+        result = color.color_options.from_code(100 + offset);
+        try testing.expect(result == opt);
+    }
+}
+
+test "Color write method standard bit4" {
+    const standard: color.Color = .{
+        .mode = color.color_mode.bit4,
+        .color = .{ .base_color = .{} },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [5]u8 = undefined;
+    gen_escape_code(&expected, "[30m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(5, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method with modifier bit4" {
+    const standard: color.Color = .{
+        .mode = color.color_mode.bit4,
+        .color = .{
+            .base_color = .{
+                .color = color.color_options.blue,
+                .bright = true,
+                .modifier = .{
+                    .mod = color.modifier_options.italic,
+                },
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [7]u8 = undefined;
+    gen_escape_code(&expected, "[3;94m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(7, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method with background and reset bit4" {
+    const standard: color.Color = .{
+        .mode = color.color_mode.bit4,
+        .fg = false,
+        .color = .{
+            .base_color = .{
+                .color = color.color_options.red,
+                .bright = true,
+                .modifier = .{
+                    .mod = color.modifier_options.bold,
+                    .reset = true,
+                },
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [9]u8 = undefined;
+    gen_escape_code(&expected, "[22;101m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(9, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method standard bit8" {
+    const standard: color.Color = .{
+        .color = .{
+            .rgb = .{
+                .r = 95,
+                .g = 95,
+                .b = 95,
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [10]u8 = undefined;
+    gen_escape_code(&expected, "[38;5;59m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(10, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method with background bit8" {
+    const standard: color.Color = .{
+        .fg = false,
+        .color = .{
+            .rgb = .{
+                .r = 135,
+                .g = 175,
+                .b = 255,
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [11]u8 = undefined;
+    gen_escape_code(&expected, "[48;5;111m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(11, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method standard bit24" {
+    const standard: color.Color = .{
+        .mode = color.color_mode.bit24,
+        .color = .{
+            .rgb = .{
+                .r = 122,
+                .g = 7,
+                .b = 29,
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [16]u8 = undefined;
+    gen_escape_code(&expected, "[38;2;122;7;29m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(16, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+test "Color write method with background bit24" {
+    const standard: color.Color = .{
+        .mode = color.color_mode.bit24,
+        .fg = false,
+        .color = .{
+            .rgb = .{
+                .r = 129,
+                .g = 201,
+                .b = 235,
+            },
+        },
+    };
+    var writer = std.ArrayList(u8).init(testing.allocator);
+    defer writer.deinit();
+    var expected: [19]u8 = undefined;
+    gen_escape_code(&expected, "[48;2;129;201;235m");
+    const result = try standard.write(writer.writer().any());
+    try testing.expectEqual(19, result);
+    try testing.expectEqualStrings(&expected, writer.items);
+}
+
+// TODO convert these old tests to test the new parser
+//
 //test "ansi escape code" {
 //    const test_str = ;
 //    try testing.expect(test_str == ansi.escape_code);
