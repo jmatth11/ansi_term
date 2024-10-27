@@ -424,32 +424,33 @@ fn assign_ansi_values(groupings: [parse_param_limit]u8, groupings_len: u8) codes
 /// @param str The string to parse.
 /// @return A color result tuple of <Color, usize> where usize is the number of bytes read.
 pub fn parse_color(str: []const u8) codes.ansi_error!color_result {
+    // string must contain at least 4 characters to be a valid color code.
     if (str.len < 4) return codes.ansi_error.invalid_format;
     if (str[0] != codes.escape_code or str[1] != codes.control_sequence_introducer) return codes.ansi_error.invalid_format;
-    var process = true;
-    var str_starting_idx: u8 = 2;
+    // the largest string a color code can have is 19
+    const parse_cap: u8 = 19;
+    var parse_idx: u8 = 2;
     var parsed_number: u8 = 0;
     var groupings: [parse_param_limit]u8 = undefined;
-    while (process) {
+    while (parse_idx <= parse_cap) {
         var buf: [4]u8 = undefined;
         var idx: u8 = 0;
         while (idx < buf.len) : (idx += 1) {
-            const cur_idx = str_starting_idx + idx;
+            const cur_idx = parse_idx + idx;
             if (cur_idx >= str.len) return codes.ansi_error.invalid_format;
             const cur_char = str[cur_idx];
             if (cur_char == 'm') {
-                process = false;
                 break;
             }
             if (cur_char == ';') break;
             buf[idx] = cur_char;
         }
-        str_starting_idx += idx + 1;
+        parse_idx += idx + 1;
         parsed_number += 1;
         if (parsed_number >= parse_param_limit) return codes.ansi_error.invalid_format;
         const num: u8 = std.fmt.parseInt(u8, buf[0..idx], 10) catch return codes.ansi_error.error_parsing;
         groupings[(parsed_number - 1)] = num;
     }
     const result = try assign_ansi_values(groupings, parsed_number);
-    return .{ result, str_starting_idx };
+    return .{ result, parse_idx };
 }
