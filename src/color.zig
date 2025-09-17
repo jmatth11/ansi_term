@@ -201,7 +201,7 @@ fn write_len_of_int(n: u8) usize {
 /// @param w The writer to write out to.
 /// @param modifier The modifier object to write.
 /// @return The number of bytes written.
-pub fn write_modifier(w: std.io.AnyWriter, modifier: Modifier) !usize {
+pub fn write_modifier(w: std.Io.Writer, modifier: Modifier) !usize {
     var write_len = try w.write(&commands.csi);
     write_len += try w.write(modifier.code());
     try w.writeByte(codes.csi_end);
@@ -217,7 +217,7 @@ pub fn write_modifier(w: std.io.AnyWriter, modifier: Modifier) !usize {
 /// @param bright Flag for bright colors or regular colors.
 /// @param modifier The modifier object to apply to the color. (bold, italic, etc..)
 /// @return The number of bytes written.
-pub fn write_color_4bit(w: std.io.AnyWriter, color: color_options, fg: bool, bright: bool, modifier: ?Modifier) !usize {
+pub fn write_color_4bit(w: std.Io.Writer, color: color_options, fg: bool, bright: bool, modifier: ?Modifier) !usize {
     var write_len = try w.write(&commands.csi);
     if (modifier) |mod| {
         write_len += try w.write(mod.code());
@@ -251,7 +251,7 @@ pub fn write_color_4bit(w: std.io.AnyWriter, color: color_options, fg: bool, bri
 /// @param val The 256 color value.
 /// @param fg The flag for foreground or background coloring.
 /// @return The number of bytes written.
-pub fn write_color_8bit(w: std.io.AnyWriter, val: u8, fg: bool) !usize {
+pub fn write_color_8bit(w: std.Io.Writer, val: u8, fg: bool) !usize {
     var write_len = try w.write(&commands.csi);
     if (fg) {
         write_len += try w.write(&codes.foreground_ext);
@@ -277,7 +277,7 @@ pub fn write_color_8bit(w: std.io.AnyWriter, val: u8, fg: bool) !usize {
 /// @param b The blue value.
 /// @param fg The flag for foreground or background coloring.
 /// @return The number of bytes written.
-pub fn write_color_24bit(w: std.io.AnyWriter, r: u8, g: u8, b: u8, fg: bool) !usize {
+pub fn write_color_24bit(w: std.Io.Writer, r: u8, g: u8, b: u8, fg: bool) !usize {
     var write_len = try w.write(&commands.csi);
     if (fg) {
         write_len += try w.write(&codes.foreground_ext);
